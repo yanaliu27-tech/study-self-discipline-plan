@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>学习自律计划 - 内测版</title>
+    <meta name="description" content="面向小学生家庭的本地学习规划和打印工具。" />
+    <link rel="stylesheet" href="./styles.css?v=20260620b" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="学习规划设置">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">学</div>
+          <div>
+            <h1>学习自律计划</h1>
+            <p>小学家庭版 · 内测 v0.1.10</p>
+          </div>
+        </div>
+
+        <form id="plannerForm" class="control-stack">
+          <section class="panel">
+            <h2>孩子信息</h2>
+            <label>
+              姓名
+              <input id="studentName" type="text" value="小朋友" autocomplete="off" />
+            </label>
+            <label>
+              年级阶段
+              <select id="gradeStage">
+                <option value="二下" selected>二下</option>
+                <option value="二升三暑假">二升三暑假</option>
+                <option value="三上">三上</option>
+                <option value="三寒假">三寒假</option>
+                <option value="三下">三下</option>
+                <option value="三升四暑假">三升四暑假</option>
+                <option value="四上">四上</option>
+                <option value="四寒假">四寒假</option>
+                <option value="四下">四下</option>
+                <option value="四升五暑假">四升五暑假</option>
+                <option value="五上">五上</option>
+                <option value="五寒假">五寒假</option>
+                <option value="五下">五下</option>
+                <option value="五升六暑假">五升六暑假</option>
+                <option value="六上">六上</option>
+                <option value="六寒假">六寒假</option>
+                <option value="六下">六下</option>
+                <option value="小升初暑假">小升初暑假</option>
+              </select>
+            </label>
+            <label>
+              城市/学习地点
+              <input id="city" type="text" placeholder="如：家里、上海、杭州" autocomplete="off" />
+            </label>
+          </section>
+
+          <section class="panel">
+            <h2>本周信息</h2>
+            <label>
+              周主题
+              <input id="weekTheme" type="text" value="按每天实际作业和课程手动安排" />
+            </label>
+            <div class="custom-grid">
+              <label>
+                本周周一日期
+                <div class="date-apply-field">
+                  <input id="weekStartDate" type="date" />
+                  <button id="applyWeekStartDate" type="button" class="button compact">确定</button>
+                </div>
+              </label>
+              <label>
+                本学期第几周
+                <input id="semesterWeek" type="number" min="1" max="30" step="1" value="1" />
+              </label>
+            </div>
+          </section>
+
+          <section class="panel no-print">
+            <h2>添加学习内容</h2>
+            <div class="custom-grid">
+              <label>
+                类型
+                <select id="customMode">
+                  <option value="study" selected>校内学习</option>
+                  <option value="course">课外课程</option>
+                </select>
+              </label>
+            </div>
+            <fieldset id="dayPicker" class="day-picker">
+              <legend>日期（可多选）</legend>
+              <div id="customDayChoices" class="day-choice-grid"></div>
+            </fieldset>
+
+            <div id="studyFields" class="content-fields">
+              <div class="custom-grid">
+                <label>
+                  学科
+                  <select id="customSubject"></select>
+                </label>
+                <label>
+                  内容
+                  <select id="customContent"></select>
+                </label>
+              </div>
+              <label id="otherTaskField" class="is-hidden">
+                <span id="customOtherLabel">其他内容</span>
+                <input id="customOther" type="text" placeholder="如：订正数学单元练习" />
+              </label>
+            </div>
+
+            <div id="courseFields" class="content-fields is-hidden">
+              <label>
+                课程内容
+                <input id="courseTitle" type="text" placeholder="如：钢琴课、围棋课、篮球训练" />
+              </label>
+              <div class="custom-grid">
+                <label>
+                  开始时间
+                  <input id="courseStart" type="time" />
+                </label>
+                <label>
+                  结束时间
+                  <input id="courseEnd" type="time" />
+                </label>
+              </div>
+            </div>
+
+            <label>
+              分钟
+              <div class="time-input">
+                <input id="customMinutes" type="number" min="5" max="180" step="5" value="20" />
+                <span>分钟</span>
+              </div>
+            </label>
+            <button id="addCustomTask" type="button" class="button secondary">
+              <span aria-hidden="true">＋</span>
+              加入本周
+            </button>
+          </section>
+
+          <section class="panel no-print">
+            <h2>学习内容库</h2>
+            <label>
+              学科
+              <select id="librarySubject"></select>
+            </label>
+            <label>
+              批量添加内容
+              <textarea
+                id="libraryBatchInput"
+                rows="4"
+                placeholder="每行一个内容，也可以用逗号分开"
+              ></textarea>
+            </label>
+            <div class="library-actions">
+              <button id="addLibraryOptions" type="button" class="button secondary">
+                <span aria-hidden="true">＋</span>
+                批量添加
+              </button>
+              <button id="removeLibraryOptions" type="button" class="button ghost">
+                <span aria-hidden="true">×</span>
+                取消选中
+              </button>
+            </div>
+            <div id="libraryOptionList" class="library-option-list"></div>
+            <p id="libraryHint" class="library-hint" aria-live="polite"></p>
+            <div class="library-total">
+              <div class="library-total-head">
+                <h3>已添加内容总览</h3>
+                <button id="removeAllLibraryOptions" type="button" class="button ghost compact">
+                  删除选中
+                </button>
+              </div>
+              <div id="libraryAllList" class="library-all-list"></div>
+            </div>
+          </section>
+
+          <div class="actions no-print">
+            <button type="submit" class="button primary">
+              <span aria-hidden="true">✓</span>
+              更新信息
+            </button>
+            <button id="printPlan" type="button" class="button">
+              <span aria-hidden="true">⌘</span>
+              打印
+            </button>
+            <button id="exportExcel" type="button" class="button">
+              <span aria-hidden="true">⇩</span>
+              导出Excel
+            </button>
+            <button id="exportPdf" type="button" class="button">
+              <span aria-hidden="true">▣</span>
+              导出PDF
+            </button>
+            <button id="clearHomework" type="button" class="button ghost">
+              <span aria-hidden="true">−</span>
+              清空学校作业
+            </button>
+            <button id="resetPlan" type="button" class="button ghost">
+              <span aria-hidden="true">×</span>
+              清空本周
+            </button>
+          </div>
+        </form>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">家庭学习规划</p>
+            <h2 id="planTitle">小朋友的二下周计划</h2>
+          </div>
+          <div class="week-card" aria-label="本周统计">
+            <span id="totalMinutes">0 分钟</span>
+            <small>本周学习量</small>
+          </div>
+        </header>
+
+        <section class="summary-strip" aria-label="规划摘要">
+          <article>
+            <span>周主题</span>
+            <strong id="summaryTheme">按每天实际作业和课程手动安排</strong>
+          </article>
+          <article>
+            <span>安排方式</span>
+            <strong id="summaryRhythm">第 1 周</strong>
+          </article>
+          <article>
+            <span>完成方式</span>
+            <strong id="summaryReview">打印后勾选完成</strong>
+          </article>
+        </section>
+
+        <section class="planner-board" aria-label="周学习计划">
+          <div id="weekGrid" class="week-grid"></div>
+          <div id="printWeekTable" class="print-week-table"></div>
+        </section>
+
+        <section class="insight-layout">
+          <article class="insight-panel">
+            <h2>学科分布</h2>
+            <div id="subjectBars" class="subject-bars"></div>
+          </article>
+          <article class="insight-panel">
+            <h2>家长提醒</h2>
+            <ul id="parentTips" class="tips-list"></ul>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <script src="./app.js?v=20260620b"></script>
+  </body>
+</html>
