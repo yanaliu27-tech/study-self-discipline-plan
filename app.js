@@ -810,14 +810,15 @@ function renderWeek() {
 
     const list = document.createElement("div");
     list.className = "task-list";
-    if (!day.tasks.length) {
+    const sortedTasks = getSortedTasks(day.tasks);
+    if (!sortedTasks.length) {
       const empty = document.createElement("div");
       empty.className = "empty-day";
       empty.textContent = "从左侧选择内容加入这一天";
       list.append(empty);
     }
 
-    day.tasks.forEach((task) => {
+    sortedTasks.forEach((task) => {
       list.append(renderTask(day.id, task));
     });
 
@@ -932,10 +933,14 @@ function renderTask(dayId, task) {
   meta.append(chip, timeControl, printedMinutes);
 
   const title = document.createElement("div");
-  title.className = "task-title";
+  title.className = task.contentType === "course" ? "task-title course-title" : "task-title";
   title.contentEditable = task.fixedType === "homework" ? "false" : "true";
   title.spellcheck = false;
-  title.textContent = task.title;
+  if (task.contentType === "course") {
+    title.append(createCourseTitlePrefix(), createCourseTitleName(task));
+  } else {
+    title.textContent = task.title;
+  }
   if (task.fixedType === "homework") {
     title.title = "默认学校作业；如需细分，可删除后从左侧添加学校作业细项";
   }
@@ -987,7 +992,7 @@ function renderTask(dayId, task) {
 
   const scheduleText = getTaskScheduleText(task);
   const note = document.createElement("div");
-  note.className = "task-note";
+  note.className = task.contentType === "course" ? "task-note course-time" : "task-note";
   note.textContent = scheduleText;
 
   const actions = document.createElement("div");
@@ -1014,8 +1019,39 @@ function renderTask(dayId, task) {
   return item;
 }
 
+function createCourseTitlePrefix() {
+  const prefix = document.createElement("span");
+  prefix.className = "course-title-prefix";
+  prefix.textContent = "课外课程";
+  return prefix;
+}
+
+function createCourseTitleName(task) {
+  const name = document.createElement("strong");
+  name.className = "course-title-name";
+  name.textContent = getCourseDisplayName(task);
+  return name;
+}
+
 function canRemoveTask(dayId, task) {
   return true;
+}
+
+function getSortedTasks(tasks = []) {
+  return tasks
+    .map((task, index) => ({ task, index, key: getTaskSortKey(task) }))
+    .sort((a, b) => a.key - b.key || a.index - b.index)
+    .map((item) => item.task);
+}
+
+function getTaskSortKey(task) {
+  if (task.contentType === "course") {
+    const schedule = getCourseSchedule(task);
+    if (schedule.start) {
+      return timeToMinutes(schedule.start);
+    }
+  }
+  return Number.POSITIVE_INFINITY;
 }
 
 function renderInsights() {
@@ -1137,7 +1173,10 @@ function exportExcelPlan() {
       .subject-chip { display: inline-block; border-radius: 999px; padding: 2px 7px; color: #ffffff; font-size: 10px; font-weight: 800; }
       .task-minutes { float: right; color: #344054; font-size: 10px; font-weight: 800; }
       .task-title { clear: both; margin-top: 4px; color: #26384d; font-weight: 800; }
+      .course-title-prefix { display: inline-block; margin-right: 4px; color: #64748b; font-size: 10px; font-weight: 800; }
+      .course-title-name { display: inline-block; border-radius: 4px; background: #ede9fe; color: #5b21b6; padding: 2px 6px; font-size: 13px; font-weight: 900; }
       .task-note { margin-top: 4px; color: #475569; font-size: 10px; }
+      .course-time { color: #5b21b6; font-size: 12px; font-weight: 900; }
       .task-status { margin-top: 4px; color: #344054; font-size: 10px; }
       .empty-day { padding: 18px 8px; color: #94a3b8; font-size: 11px; text-align: center; }
     </style>
@@ -1190,8 +1229,9 @@ function exportPageStyleWeekHtml() {
 
 function exportPageStyleDayHtml(day) {
   const colors = DAY_COLORS[day.id];
-  const taskHtml = day.tasks.length
-    ? day.tasks.map((task) => exportPageStyleTaskHtml(task)).join("")
+  const sortedTasks = getSortedTasks(day.tasks);
+  const taskHtml = sortedTasks.length
+    ? sortedTasks.map((task) => exportPageStyleTaskHtml(task)).join("")
     : '<div class="empty-day">从左侧选择内容加入这一天</div>';
   return `<td class="day-cell" bgcolor="${colors.soft}"${excelStyle([
     `background: ${colors.soft}`,
@@ -1225,10 +1265,17 @@ function exportPageStyleTaskHtml(task) {
       <span class="subject-chip"${excelStyle([`background: ${subject.color}`])}>${escapeHtml(subject.label)}</span>
       <span class="task-minutes">${formatMinutes(task.minutes)}</span>
     </div>
-    <div class="task-title">${escapeHtml(task.title || contentLabel(task) || "未命名内容")}</div>
-    ${scheduleText ? `<div class="task-note">${escapeHtml(scheduleText)}</div>` : ""}
+    ${exportPageStyleTaskTitleHtml(task)}
+    ${scheduleText ? `<div class="task-note ${task.contentType === "course" ? "course-time" : ""}">${escapeHtml(scheduleText)}</div>` : ""}
     <div class="task-status">完成情况：${escapeHtml(statusText)}</div>
   </div>`;
+}
+
+function exportPageStyleTaskTitleHtml(task) {
+  if (task.contentType !== "course") {
+    return `<div class="task-title">${escapeHtml(task.title || contentLabel(task) || "未命名内容")}</div>`;
+  }
+  return `<div class="task-title course-title"><span class="course-title-prefix">课外课程</span><strong class="course-title-name">${escapeHtml(getCourseDisplayName(task))}</strong></div>`;
 }
 
 function createWeeklyMatrixRows() {
@@ -1284,10 +1331,11 @@ function exportDayPlanCell(tasks = []) {
 }
 
 function getPrintDayCellText(tasks = []) {
-  if (!tasks.length) {
+  const sortedTasks = getSortedTasks(tasks);
+  if (!sortedTasks.length) {
     return "";
   }
-  return tasks
+  return sortedTasks
     .map((task) => {
       const status = "□未 □半 □完";
       if (task.contentType === "course") {
@@ -1304,9 +1352,14 @@ function getTaskExportTitle(task) {
   if (task.contentType !== "course") {
     return title;
   }
-  const courseTitle = task.courseTitle || title.replace(/^课外课程：/, "") || "课外课程";
+  const courseTitle = getCourseDisplayName(task);
   const schedule = getCourseScheduleLabel(task);
   return schedule ? `课外课程：${courseTitle}（${schedule}）` : `课外课程：${courseTitle}`;
+}
+
+function getCourseDisplayName(task) {
+  const title = task.title || "";
+  return task.courseTitle || title.replace(/^课外课程：/, "").trim() || "未填写课程";
 }
 
 function getExportTimeLines(task) {
