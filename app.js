@@ -147,6 +147,7 @@ function bindElements() {
     "clearHomework",
     "resetPlan",
     "planTitle",
+    "printTitleMeta",
     "totalMinutes",
     "summaryTheme",
     "summaryRhythm",
@@ -339,6 +340,7 @@ function applyCurrentFormInfo(options = {}) {
     return;
   }
   state.form = readForm();
+  hydrateForm();
   saveState();
   refreshDayOptions();
   render();
@@ -779,7 +781,7 @@ function readForm() {
     gradeStage: els.gradeStage.value,
     city: els.city.value.trim() || DEFAULT_FORM.city,
     weekTheme: els.weekTheme.value.trim() || DEFAULT_FORM.weekTheme,
-    weekStartDate: els.weekStartDate.value || DEFAULT_FORM.weekStartDate,
+    weekStartDate: getWeekMondayInputValue(els.weekStartDate.value || DEFAULT_FORM.weekStartDate),
     semesterWeek: clamp(Number(els.semesterWeek.value) || 1, 1, 30),
   };
 }
@@ -887,12 +889,13 @@ function render() {
 }
 
 function renderHeader() {
-  const total = getTotalMinutes();
+  const totals = getWeekTotals();
   els.planTitle.textContent = `${state.form.studentName}的${state.form.gradeStage}周计划`;
-  els.totalMinutes.textContent = `${total} 分钟`;
+  els.printTitleMeta.textContent = getPrintTitleMeta(totals);
+  els.totalMinutes.textContent = `学习 ${totals.study} 分钟｜运动 ${totals.sports} 分钟`;
   els.summaryTheme.textContent = state.form.weekTheme;
   els.summaryRhythm.textContent = `第 ${state.form.semesterWeek} 周 · ${formatWeekRange(state.form.weekStartDate)}`;
-  els.summaryReview.textContent = total ? "打印后逐项勾选完成" : "先选择学习内容";
+  els.summaryReview.textContent = totals.study || totals.sports ? "打印后逐项勾选完成" : "先选择学习内容";
 }
 
 function renderWeek() {
@@ -1242,6 +1245,22 @@ function getTotalMinutes() {
   return state.plan.reduce((sum, day) => sum + sumDay(day), 0);
 }
 
+function getPrintTitleMeta(totals = getWeekTotals()) {
+  return `${state.form.gradeStage}第 ${state.form.semesterWeek} 周　日期：${formatWeekRange(state.form.weekStartDate)}　学习时间：${totals.study} 分钟　运动时间：${totals.sports} 分钟`;
+}
+
+function getWeekTotals() {
+  return state.plan.reduce(
+    (totals, day) => {
+      const dayTotals = getDayTotals(day);
+      totals.study += dayTotals.study;
+      totals.sports += dayTotals.sports;
+      return totals;
+    },
+    { study: 0, sports: 0 },
+  );
+}
+
 function sumDay(day) {
   return (day.tasks || []).reduce((sum, task) => sum + Number(task.minutes || 0), 0);
 }
@@ -1298,10 +1317,6 @@ function exportExcelPlan() {
       .page { padding: 16px; }
       h1 { margin: 0 0 6px; font-size: 22px; text-align: center; }
       .meta { margin-bottom: 10px; color: #555; font-size: 12px; text-align: center; }
-      .summary { width: 100%; border-collapse: separate; border-spacing: 8px 0; margin-bottom: 12px; table-layout: fixed; }
-      .summary td { border: 1px solid #d9e2ef; background: #ffffff; padding: 8px; font-size: 12px; vertical-align: top; }
-      .summary span { display: block; color: #667085; font-size: 11px; font-weight: 700; }
-      .summary strong { display: block; margin-top: 3px; color: #172033; font-size: 13px; }
       .week-board { width: 100%; border-collapse: separate; border-spacing: 8px 0; table-layout: fixed; }
       .day-cell { width: 14.28%; border: 1px solid #d9e2ef; border-top-width: 4px; border-radius: 8px; vertical-align: top; padding: 0; }
       .day-head { border-bottom: 1px solid #d9e2ef; padding: 8px; font-weight: 800; }
@@ -1327,26 +1342,19 @@ function exportExcelPlan() {
   <body>
     <div class="page">
       <h1>${escapeHtml(state.form.studentName)}的${escapeHtml(state.form.gradeStage)}周计划</h1>
-      <div class="meta">${locationMeta}本学期第 ${escapeHtml(state.form.semesterWeek)} 周　日期：${escapeHtml(formatWeekRange(state.form.weekStartDate))}　总时长：${getTotalMinutes()} 分钟</div>
-      <table class="summary">
-        <tr>
-          <td><span>周主题</span><strong>${escapeHtml(state.form.weekTheme)}</strong></td>
-          <td><span>安排方式</span><strong>第 ${escapeHtml(state.form.semesterWeek)} 周 · ${escapeHtml(formatWeekRange(state.form.weekStartDate))}</strong></td>
-          <td><span>完成方式</span><strong>打印后逐项勾选完成</strong></td>
-        </tr>
-      </table>
+      <div class="meta">${locationMeta}${escapeHtml(getPrintTitleMeta())}</div>
       ${exportPageStyleWeekHtml()}
     </div>
   </body>
 </html>`;
 
   const blob = new Blob(["\ufeff", html], { type: "application/vnd.ms-excel;charset=utf-8" });
-  downloadBlob(blob, `${safeFileName(state.form.studentName)}-${safeFileName(state.form.gradeStage)}-学习计划.xls`);
+  downloadBlob(blob, `${buildExportFileBaseName()}.xls`);
 }
 
 function exportPdfPlan() {
   const previousTitle = document.title;
-  document.title = `${state.form.studentName}-${state.form.gradeStage}-学习计划`;
+  document.title = buildExportFileBaseName();
   window.print();
   setTimeout(() => {
     document.title = previousTitle;
@@ -1810,6 +1818,15 @@ function safeFileName(value) {
   return String(value || "学习计划").replace(/[\\/:*?"<>|]/g, "-");
 }
 
+function buildExportFileBaseName() {
+  return [
+    safeFileName(state.form.studentName),
+    safeFileName(state.form.gradeStage),
+    formatExportWeekRange(state.form.weekStartDate),
+    "学习计划",
+  ].join("-");
+}
+
 function saveState() {
   localStorage.setItem("study-planner-state", JSON.stringify(state));
 }
@@ -1848,7 +1865,7 @@ function normalizeForm(form) {
     ...form,
     city: form.city === "苏州" ? "" : form.city || DEFAULT_FORM.city,
     gradeStage: GRADE_STAGE_ALIASES[form.gradeStage] || form.gradeStage || DEFAULT_FORM.gradeStage,
-    weekStartDate: form.weekStartDate || DEFAULT_FORM.weekStartDate,
+    weekStartDate: getWeekMondayInputValue(form.weekStartDate || DEFAULT_FORM.weekStartDate),
     semesterWeek: clamp(Number(form.semesterWeek) || DEFAULT_FORM.semesterWeek, 1, 30),
   };
 }
@@ -1891,14 +1908,20 @@ function refreshDayOptions() {
 
 function getDayDateLabel(dayId) {
   const dayIndex = DAYS.findIndex((day) => day.id === dayId);
-  const date = addDays(parseInputDate(state.form.weekStartDate), dayIndex);
+  const date = addDays(getWeekMondayDate(state.form.weekStartDate), dayIndex);
   return formatMonthDay(date);
 }
 
 function formatWeekRange(startValue) {
-  const start = parseInputDate(startValue);
+  const start = getWeekMondayDate(startValue);
   const end = addDays(start, 6);
   return `${formatMonthDay(start)}-${formatMonthDay(end)}`;
+}
+
+function formatExportWeekRange(startValue) {
+  const start = getWeekMondayDate(startValue);
+  const end = addDays(start, 6);
+  return `${formatCompactDate(start)}-${formatCompactDate(end)}`;
 }
 
 function getCurrentWeekMonday() {
@@ -1906,6 +1929,17 @@ function getCurrentWeekMonday() {
   const day = today.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   return formatDateInput(addDays(today, diff));
+}
+
+function getWeekMondayInputValue(value) {
+  return formatDateInput(getWeekMondayDate(value));
+}
+
+function getWeekMondayDate(value) {
+  const date = parseInputDate(value);
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  return addDays(date, diff);
 }
 
 function parseInputDate(value) {
@@ -1931,4 +1965,11 @@ function formatDateInput(date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function formatCompactDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}${month}${day}`;
 }
