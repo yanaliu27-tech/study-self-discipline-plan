@@ -13,7 +13,7 @@ const SUBJECTS = {
   chinese: { label: "语文", color: "#2563eb" },
   math: { label: "数学", color: "#0f9f6e" },
   english: { label: "英语", color: "#c77913" },
-  course: { label: "课外", color: "#8b5cf6" },
+  course: { label: "课外课程", color: "#8b5cf6" },
   reading: { label: "阅读", color: "#7c3aed" },
   habits: { label: "习惯", color: "#d9485f" },
   sports: { label: "运动", color: "#64748b" },
@@ -40,13 +40,14 @@ const EXPORT_SUBJECT_FILLS = {
 };
 
 const STUDY_SUBJECTS = ["homework", "chinese", "math", "english"];
-const LIBRARY_SUBJECTS = [...STUDY_SUBJECTS, "sports"];
+const LIBRARY_SUBJECTS = [...STUDY_SUBJECTS, "course", "sports"];
 
 const CONTENT_OPTIONS = {
   homework: [{ id: "other", label: "其他" }],
   chinese: [{ id: "other", label: "其他" }],
   math: [{ id: "other", label: "其他" }],
   english: [{ id: "other", label: "其他" }],
+  course: [{ id: "other", label: "其他" }],
   sports: [{ id: "other", label: "其他" }],
 };
 
@@ -62,7 +63,7 @@ const STATUS_OPTIONS = [
 ];
 
 const HOMEWORK_MINUTES = 20;
-const CONTENT_LIBRARY_VERSION = "manual-defaults-only-v1";
+const CONTENT_LIBRARY_VERSION = "fixed-course-schedule-v1";
 const REMOVED_DEFAULT_CONTENT_LABELS = ["阅读", "口算", "学霸", "abc reading", "运动"];
 
 const DEFAULT_FORM = {
@@ -88,6 +89,7 @@ let state = {
 };
 
 const els = {};
+let appliedScheduleOptionKey = "";
 
 document.addEventListener("DOMContentLoaded", () => {
   bindElements();
@@ -123,6 +125,8 @@ function bindElements() {
     "courseFields",
     "courseKind",
     "courseTimeMode",
+    "courseContent",
+    "courseContentField",
     "sportsContent",
     "sportsContentField",
     "courseTitleField",
@@ -135,6 +139,12 @@ function bindElements() {
     "addCustomTask",
     "librarySubject",
     "libraryBatchInput",
+    "libraryScheduleFields",
+    "libraryTimeMode",
+    "libraryTimeRange",
+    "libraryStart",
+    "libraryEnd",
+    "libraryMinutes",
     "addLibraryOptions",
     "removeLibraryOptions",
     "libraryOptionList",
@@ -192,7 +202,9 @@ function fillStaticSelects() {
   });
 
   updateContentOptions();
+  updateCourseContentOptions();
   updateSportsContentOptions();
+  updateLibraryScheduleFields();
 }
 
 function bindEvents() {
@@ -272,6 +284,7 @@ function bindEvents() {
 
   els.librarySubject.addEventListener("change", () => {
     setLibraryHint("");
+    updateLibraryScheduleFields();
     renderLibraryOptions();
   });
 
@@ -290,10 +303,15 @@ function bindEvents() {
   [els.courseStart, els.courseEnd].forEach((input) => {
     input.addEventListener("change", updateCourseMinutes);
   });
+  [els.libraryStart, els.libraryEnd].forEach((input) => {
+    input.addEventListener("change", updateLibraryMinutes);
+  });
 
   els.courseKind.addEventListener("change", updateCourseFields);
   els.courseTimeMode.addEventListener("change", updateCourseFields);
+  els.courseContent.addEventListener("change", updateCourseFields);
   els.sportsContent.addEventListener("change", updateCourseFields);
+  els.libraryTimeMode.addEventListener("change", updateLibraryScheduleFields);
 
   els.printPlan.addEventListener("click", () => {
     window.print();
@@ -368,11 +386,25 @@ function updateSportsContentOptions(options = {}) {
   getContentOptions("sports").forEach((content) => {
     const option = document.createElement("option");
     option.value = content.id;
-    option.textContent = content.label;
+    option.textContent = formatLibraryOptionLabel(content);
     els.sportsContent.append(option);
   });
   if ([...els.sportsContent.options].some((option) => option.value === previousValue)) {
     els.sportsContent.value = previousValue;
+  }
+}
+
+function updateCourseContentOptions(options = {}) {
+  const previousValue = options.preferredValue || els.courseContent.value;
+  els.courseContent.innerHTML = "";
+  getContentOptions("course").forEach((content) => {
+    const option = document.createElement("option");
+    option.value = content.id;
+    option.textContent = formatLibraryOptionLabel(content);
+    els.courseContent.append(option);
+  });
+  if ([...els.courseContent.options].some((option) => option.value === previousValue)) {
+    els.courseContent.value = previousValue;
   }
 }
 
@@ -404,12 +436,16 @@ function updateDetailFields() {
 function updateCourseFields() {
   const kind = COURSE_KINDS[els.courseKind.value] || COURSE_KINDS.course;
   const isSports = els.courseKind.value === "sports";
+  updateCourseContentOptions({ preferredValue: els.courseContent.value });
   updateSportsContentOptions({ preferredValue: els.sportsContent.value });
-  const needsManualTitle = !isSports || els.sportsContent.value === "other";
+  const selectedContent = getSelectedCourseLibraryOption();
+  const needsManualTitle = !selectedContent || selectedContent.id === "other";
+  els.courseContentField.classList.toggle("is-hidden", isSports);
   els.sportsContentField.classList.toggle("is-hidden", !isSports);
   els.courseTitleField.classList.toggle("is-hidden", !needsManualTitle);
   els.courseTitleLabel.textContent = isSports ? "其他运动内容" : "课程内容";
   els.courseTitle.placeholder = kind.placeholder;
+  applyFixedScheduleToCourseFields(selectedContent);
   const isDurationOnly = els.courseTimeMode.value === "duration";
   els.courseTimeRange.classList.toggle("is-hidden", isDurationOnly);
   if (isDurationOnly) {
@@ -420,10 +456,63 @@ function updateCourseFields() {
   }
 }
 
+function getSelectedCourseLibraryOption() {
+  if (els.courseKind.value === "sports") {
+    return getContentOptions("sports").find((option) => option.id === els.sportsContent.value);
+  }
+  return getContentOptions("course").find((option) => option.id === els.courseContent.value);
+}
+
+function applyFixedScheduleToCourseFields(option) {
+  if (!option || option.id === "other" || !optionHasFixedSchedule(option)) {
+    appliedScheduleOptionKey = "";
+    return;
+  }
+  const optionKey = `${els.courseKind.value}:${option.id}`;
+  if (appliedScheduleOptionKey === optionKey) {
+    return;
+  }
+  appliedScheduleOptionKey = optionKey;
+  const schedule = getLibraryOptionSchedule(option);
+  if (schedule.start || schedule.end) {
+    els.courseTimeMode.value = "time";
+    els.courseStart.value = schedule.start;
+    els.courseEnd.value = schedule.end;
+  } else if (schedule.minutes) {
+    els.courseTimeMode.value = "duration";
+    els.courseStart.value = "";
+    els.courseEnd.value = "";
+  }
+  if (schedule.minutes) {
+    els.customMinutes.value = schedule.minutes;
+  }
+}
+
 function updateCourseMinutes() {
   const minutes = minutesFromTimeRange(els.courseStart.value, els.courseEnd.value);
   if (minutes) {
     els.customMinutes.value = minutes;
+  }
+}
+
+function updateLibraryScheduleFields() {
+  const subject = els.librarySubject.value || "chinese";
+  const usesSchedule = subject === "course" || subject === "sports";
+  els.libraryScheduleFields.classList.toggle("is-hidden", !usesSchedule);
+  const isDurationOnly = els.libraryTimeMode.value === "duration";
+  els.libraryTimeRange.classList.toggle("is-hidden", !usesSchedule || isDurationOnly);
+  if (isDurationOnly) {
+    els.libraryStart.value = "";
+    els.libraryEnd.value = "";
+  } else {
+    updateLibraryMinutes();
+  }
+}
+
+function updateLibraryMinutes() {
+  const minutes = minutesFromTimeRange(els.libraryStart.value, els.libraryEnd.value);
+  if (minutes) {
+    els.libraryMinutes.value = minutes;
   }
 }
 
@@ -484,20 +573,49 @@ function addLibraryOptions() {
     if (contentLabelExists(subject, label)) {
       return;
     }
-    const option = { id: createId("content"), label };
+    const option = createLibraryOption(subject, label);
     state.contentLibrary[subject].push(option);
     added.push(option);
   });
 
   els.libraryBatchInput.value = "";
   saveState();
-  if (subject === "sports") {
+  if (subject === "course") {
+    syncCourseContentSelection(added[0]?.id);
+  } else if (subject === "sports") {
     syncSportsContentSelection(added[0]?.id);
   } else {
     syncStudyContentSelection(subject, added[0]?.id);
   }
   renderContentLibrary();
   setLibraryHint(added.length ? `已添加 ${added.length} 项` : "没有新增内容");
+}
+
+function createLibraryOption(subject, label) {
+  const option = { id: createId("content"), label };
+  if (subject !== "course" && subject !== "sports") {
+    return option;
+  }
+  const schedule = readLibrarySchedule();
+  return {
+    ...option,
+    ...schedule,
+  };
+}
+
+function readLibrarySchedule() {
+  const isDurationOnly = els.libraryTimeMode.value === "duration";
+  const startTime = isDurationOnly ? "" : normalizeTimeValue(els.libraryStart.value);
+  const endTime = isDurationOnly ? "" : normalizeTimeValue(els.libraryEnd.value);
+  const calculatedMinutes = minutesFromTimeRange(startTime, endTime);
+  const minutes = clamp(calculatedMinutes || Number(els.libraryMinutes.value) || 45, 5, 180);
+  const schedule = getCourseSchedule({ startTime, endTime, minutes });
+  return {
+    fixedTimeMode: isDurationOnly ? "duration" : "time",
+    fixedStartTime: schedule.start,
+    fixedEndTime: schedule.end,
+    fixedMinutes: minutes,
+  };
 }
 
 function removeSelectedLibraryOptions() {
@@ -575,7 +693,7 @@ function renderLibraryOptions() {
     checkbox.type = "checkbox";
     checkbox.value = option.id;
     const text = document.createElement("span");
-    text.textContent = option.label;
+    text.innerHTML = `${escapeHtml(option.label)}${getLibraryScheduleBadge(option)}`;
     row.append(checkbox, text);
     els.libraryOptionList.append(row);
   });
@@ -623,7 +741,7 @@ function renderLibraryAllOptions() {
       checkbox.value = option.id;
       checkbox.dataset.subject = subject;
       const text = document.createElement("span");
-      text.textContent = option.label;
+      text.innerHTML = `${escapeHtml(option.label)}${getLibraryScheduleBadge(option)}`;
       row.append(checkbox, text);
       group.append(row);
     });
@@ -649,6 +767,15 @@ function refreshContentOptionsForSubject(subject, removedIds = []) {
     }
     return;
   }
+  if (subject === "course") {
+    const previousValue = els.courseContent.value;
+    updateCourseContentOptions();
+    if (previousValue && !removedIds.includes(previousValue)) {
+      els.courseContent.value = previousValue;
+      updateCourseFields();
+    }
+    return;
+  }
   if (els.customSubject.value !== subject) {
     return;
   }
@@ -667,6 +794,18 @@ function syncStudyContentSelection(subject, preferredContentId = "") {
   updateContentOptions({ preferredValue: preferredContentId || els.customContent.value });
 }
 
+function syncCourseContentSelection(preferredContentId = "") {
+  els.customMode.value = "course";
+  els.courseKind.value = "course";
+  updateModeFields();
+  updateCourseContentOptions({ preferredValue: preferredContentId || els.courseContent.value });
+  if (preferredContentId) {
+    els.courseContent.value = preferredContentId;
+    appliedScheduleOptionKey = "";
+  }
+  updateCourseFields();
+}
+
 function syncSportsContentSelection(preferredContentId = "") {
   els.customMode.value = "course";
   els.courseKind.value = "sports";
@@ -674,8 +813,26 @@ function syncSportsContentSelection(preferredContentId = "") {
   updateSportsContentOptions({ preferredValue: preferredContentId || els.sportsContent.value });
   if (preferredContentId) {
     els.sportsContent.value = preferredContentId;
+    appliedScheduleOptionKey = "";
   }
   updateCourseFields();
+}
+
+function getLibraryScheduleBadge(option) {
+  if (!optionHasFixedSchedule(option)) {
+    return "";
+  }
+  const schedule = getLibraryOptionSchedule(option);
+  const text = schedule.label || `${schedule.minutes} 分钟`;
+  return ` <small class="library-time-badge">${escapeHtml(text)}</small>`;
+}
+
+function formatLibraryOptionLabel(option) {
+  if (!optionHasFixedSchedule(option)) {
+    return option.label;
+  }
+  const schedule = getLibraryOptionSchedule(option);
+  return `${option.label} ${schedule.label || `${schedule.minutes} 分钟`}`;
 }
 
 function parseBatchContent(value) {
@@ -707,8 +864,10 @@ function buildCourseTask() {
   const kindLabel = getCourseKindLabel({ courseKind });
   const isSports = courseKind === "sports";
   const selectedSportsContent = getContentOptions("sports").find((option) => option.id === els.sportsContent.value);
-  const courseTitle = isSports && selectedSportsContent?.id !== "other"
-    ? selectedSportsContent.label
+  const selectedCourseContent = getContentOptions("course").find((option) => option.id === els.courseContent.value);
+  const selectedContent = isSports ? selectedSportsContent : selectedCourseContent;
+  const courseTitle = selectedContent?.id && selectedContent.id !== "other"
+    ? selectedContent.label
     : els.courseTitle.value.trim();
   if (!courseTitle) {
     (isSports ? els.sportsContent : els.courseTitle).focus();
@@ -735,6 +894,7 @@ function buildCourseTask() {
     contentType: "course",
     courseKind,
     sportsContentId: isSports ? els.sportsContent.value : "",
+    courseContentId: isSports ? "" : els.courseContent.value,
     status: "",
     statusTouched: false,
     courseTitle,
@@ -764,7 +924,9 @@ function clearTaskInputs() {
   els.courseStart.value = "";
   els.courseEnd.value = "";
   els.courseTimeMode.value = "time";
+  els.courseContent.value = "other";
   els.sportsContent.value = "other";
+  appliedScheduleOptionKey = "";
   updateCourseFields();
   resetDayChoices();
 }
@@ -1691,6 +1853,25 @@ function getContentOptions(subject) {
   return [...baseOptions.slice(0, otherIndex), ...customOptions, ...baseOptions.slice(otherIndex)];
 }
 
+function optionHasFixedSchedule(option) {
+  if (!option) {
+    return false;
+  }
+  return Boolean(
+    normalizeTimeValue(option.fixedStartTime) ||
+      normalizeTimeValue(option.fixedEndTime) ||
+      Number(option.fixedMinutes),
+  );
+}
+
+function getLibraryOptionSchedule(option) {
+  const start = normalizeTimeValue(option?.fixedStartTime);
+  const end = normalizeTimeValue(option?.fixedEndTime);
+  const minutes = clamp(Number(option?.fixedMinutes) || minutesFromTimeRange(start, end) || 45, 5, 180);
+  const schedule = getCourseSchedule({ startTime: start, endTime: end, minutes });
+  return { ...schedule, minutes };
+}
+
 function createEmptyContentLibrary() {
   return LIBRARY_SUBJECTS.reduce((library, subject) => {
     library[subject] = [];
@@ -1712,7 +1893,20 @@ function normalizeContentLibrary(contentLibrary) {
         return;
       }
       const id = typeof option === "object" && option?.id ? String(option.id) : createId("content");
-      normalized[subject].push({ id, label });
+      const normalizedOption = { id, label };
+      if ((subject === "course" || subject === "sports") && typeof option === "object") {
+        const start = normalizeTimeValue(option.fixedStartTime || option.startTime);
+        const end = normalizeTimeValue(option.fixedEndTime || option.endTime);
+        const minutes = Number(option.fixedMinutes || option.minutes);
+        if (start || end || minutes) {
+          const schedule = getCourseSchedule({ startTime: start, endTime: end, minutes: clamp(minutes || 45, 5, 180) });
+          normalizedOption.fixedTimeMode = option.fixedTimeMode === "duration" ? "duration" : "time";
+          normalizedOption.fixedStartTime = schedule.start;
+          normalizedOption.fixedEndTime = schedule.end;
+          normalizedOption.fixedMinutes = clamp(minutesFromTimeRange(schedule.start, schedule.end) || minutes || 45, 5, 180);
+        }
+      }
+      normalized[subject].push(normalizedOption);
     });
   });
 

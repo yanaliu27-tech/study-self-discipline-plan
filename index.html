@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>学习自律计划 - 内测版</title>
     <meta name="description" content="面向小学生家庭的本地学习规划和打印工具。" />
-    <link rel="stylesheet" href="./styles.css?v=20260621d" />
+    <link rel="stylesheet" href="./styles.css?v=20260621e" />
   </head>
   <body>
     <div class="app-shell">
@@ -14,7 +14,7 @@
           <div class="brand-mark" aria-hidden="true">学</div>
           <div>
             <h1>学习自律计划</h1>
-            <p>小学家庭版 · 内测 v0.1.18</p>
+            <p>小学家庭版 · 内测 v0.1.19</p>
           </div>
         </div>
 
@@ -125,6 +125,10 @@
                   </select>
                 </label>
               </div>
+              <label id="courseContentField">
+                课外课程内容
+                <select id="courseContent"></select>
+              </label>
               <label id="sportsContentField" class="is-hidden">
                 运动内容
                 <select id="sportsContent"></select>
@@ -172,6 +176,32 @@
                 placeholder="每行一个内容，也可以用逗号分开"
               ></textarea>
             </label>
+            <div id="libraryScheduleFields" class="library-schedule-fields is-hidden">
+              <label>
+                固定时间方式
+                <select id="libraryTimeMode">
+                  <option value="time" selected>上课时间</option>
+                  <option value="duration">只填时长</option>
+                </select>
+              </label>
+              <div id="libraryTimeRange" class="custom-grid">
+                <label>
+                  开始时间
+                  <input id="libraryStart" type="time" />
+                </label>
+                <label>
+                  结束时间
+                  <input id="libraryEnd" type="time" />
+                </label>
+              </div>
+              <label>
+                固定分钟
+                <div class="time-input">
+                  <input id="libraryMinutes" type="number" min="5" max="180" step="5" value="45" />
+                  <span>分钟</span>
+                </div>
+              </label>
+            </div>
             <div class="library-actions">
               <button id="addLibraryOptions" type="button" class="button secondary">
                 <span aria-hidden="true">＋</span>
@@ -270,6 +300,6 @@
       </main>
     </div>
 
-    <script src="./app.js?v=20260621d"></script>
+    <script src="./app.js?v=20260621e"></script>
   </body>
 </html>
