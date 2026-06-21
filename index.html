@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>学习自律计划 - 内测版</title>
     <meta name="description" content="面向小学生家庭的本地学习规划和打印工具。" />
-    <link rel="stylesheet" href="./styles.css?v=20260620c" />
+    <link rel="stylesheet" href="./styles.css?v=20260621a" />
   </head>
   <body>
     <div class="app-shell">
@@ -14,7 +14,7 @@
           <div class="brand-mark" aria-hidden="true">学</div>
           <div>
             <h1>学习自律计划</h1>
-            <p>小学家庭版 · 内测 v0.1.11</p>
+            <p>小学家庭版 · 内测 v0.1.15</p>
           </div>
         </div>
 
@@ -109,11 +109,31 @@
             </div>
 
             <div id="courseFields" class="content-fields is-hidden">
-              <label>
-                课程内容
+              <div class="custom-grid">
+                <label>
+                  内容类型
+                  <select id="courseKind">
+                    <option value="course" selected>课外课程</option>
+                    <option value="sports">运动</option>
+                  </select>
+                </label>
+                <label>
+                  时间方式
+                  <select id="courseTimeMode">
+                    <option value="time" selected>上课时间</option>
+                    <option value="duration">只填时长</option>
+                  </select>
+                </label>
+              </div>
+              <label id="sportsContentField" class="is-hidden">
+                运动内容
+                <select id="sportsContent"></select>
+              </label>
+              <label id="courseTitleField">
+                <span id="courseTitleLabel">课程内容</span>
                 <input id="courseTitle" type="text" placeholder="如：钢琴课、围棋课、篮球训练" />
               </label>
-              <div class="custom-grid">
+              <div id="courseTimeRange" class="custom-grid">
                 <label>
                   开始时间
                   <input id="courseStart" type="time" />
@@ -249,6 +269,6 @@
       </main>
     </div>
 
-    <script src="./app.js?v=20260620c"></script>
+    <script src="./app.js?v=20260621a"></script>
   </body>
 </html>

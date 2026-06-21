@@ -34,12 +34,13 @@ const EXPORT_SUBJECT_FILLS = {
   chinese: { fill: "#dbeafe", soft: "#f8fbff", text: "#1d4ed8", line: "#2563eb" },
   math: { fill: "#dcfce7", soft: "#f7fdf9", text: "#047857", line: "#0f9f6e" },
   english: { fill: "#ffedd5", soft: "#fffaf5", text: "#b45309", line: "#c77913" },
-  sports: { fill: "#e2e8f0", soft: "#f8fafc", text: "#475569", line: "#64748b" },
   course: { fill: "#ede9fe", soft: "#fbfaff", text: "#6d28d9", line: "#8b5cf6" },
+  sports: { fill: "#e2e8f0", soft: "#f8fafc", text: "#475569", line: "#64748b" },
   habits: { fill: "#ffe4e6", soft: "#fff8f9", text: "#be123c", line: "#d9485f" },
 };
 
-const SELECTABLE_SUBJECTS = ["homework", "chinese", "math", "english", "sports"];
+const STUDY_SUBJECTS = ["homework", "chinese", "math", "english"];
+const LIBRARY_SUBJECTS = [...STUDY_SUBJECTS, "sports"];
 
 const CONTENT_OPTIONS = {
   homework: [{ id: "other", label: "其他" }],
@@ -47,6 +48,11 @@ const CONTENT_OPTIONS = {
   math: [{ id: "other", label: "其他" }],
   english: [{ id: "other", label: "其他" }],
   sports: [{ id: "other", label: "其他" }],
+};
+
+const COURSE_KINDS = {
+  course: { label: "课外课程", placeholder: "如：钢琴课、围棋课、编程课" },
+  sports: { label: "运动", placeholder: "如：跳绳、篮球训练、游泳" },
 };
 
 const STATUS_OPTIONS = [
@@ -115,7 +121,14 @@ function bindElements() {
     "customOtherLabel",
     "customOther",
     "courseFields",
+    "courseKind",
+    "courseTimeMode",
+    "sportsContent",
+    "sportsContentField",
+    "courseTitleField",
+    "courseTitleLabel",
     "courseTitle",
+    "courseTimeRange",
     "courseStart",
     "courseEnd",
     "customMinutes",
@@ -163,16 +176,22 @@ function fillStaticSelects() {
     els.customDayChoices.append(label);
   });
 
-  SELECTABLE_SUBJECTS.forEach((id) => {
-    [els.customSubject, els.librarySubject].forEach((select) => {
-      const option = document.createElement("option");
-      option.value = id;
-      option.textContent = SUBJECTS[id].label;
-      select.append(option);
-    });
+  STUDY_SUBJECTS.forEach((id) => {
+    const option = document.createElement("option");
+    option.value = id;
+    option.textContent = SUBJECTS[id].label;
+    els.customSubject.append(option);
+  });
+
+  LIBRARY_SUBJECTS.forEach((id) => {
+    const option = document.createElement("option");
+    option.value = id;
+    option.textContent = SUBJECTS[id].label;
+    els.librarySubject.append(option);
   });
 
   updateContentOptions();
+  updateSportsContentOptions();
 }
 
 function bindEvents() {
@@ -271,6 +290,10 @@ function bindEvents() {
     input.addEventListener("change", updateCourseMinutes);
   });
 
+  els.courseKind.addEventListener("change", updateCourseFields);
+  els.courseTimeMode.addEventListener("change", updateCourseFields);
+  els.sportsContent.addEventListener("change", updateCourseFields);
+
   els.printPlan.addEventListener("click", () => {
     window.print();
   });
@@ -321,9 +344,9 @@ function applyCurrentFormInfo(options = {}) {
   render();
 }
 
-function updateContentOptions() {
+function updateContentOptions(options = {}) {
   const subject = els.customSubject.value || "chinese";
-  const previousValue = els.customContent.value;
+  const previousValue = options.preferredValue || els.customContent.value;
   els.customContent.innerHTML = "";
   getContentOptions(subject).forEach((content) => {
     const option = document.createElement("option");
@@ -337,10 +360,27 @@ function updateContentOptions() {
   updateDetailFields();
 }
 
+function updateSportsContentOptions(options = {}) {
+  const previousValue = options.preferredValue || els.sportsContent.value;
+  els.sportsContent.innerHTML = "";
+  getContentOptions("sports").forEach((content) => {
+    const option = document.createElement("option");
+    option.value = content.id;
+    option.textContent = content.label;
+    els.sportsContent.append(option);
+  });
+  if ([...els.sportsContent.options].some((option) => option.value === previousValue)) {
+    els.sportsContent.value = previousValue;
+  }
+}
+
 function updateModeFields() {
   const isCourse = els.customMode.value === "course";
   els.studyFields.classList.toggle("is-hidden", isCourse);
   els.courseFields.classList.toggle("is-hidden", !isCourse);
+  if (isCourse) {
+    updateCourseFields();
+  }
   updateDetailFields();
 }
 
@@ -350,15 +390,31 @@ function updateDetailFields() {
   const isStudy = els.customMode.value === "study";
   const needsManualContent = isStudy && (content === "other" || content === "exercise");
   els.otherTaskField.classList.toggle("is-hidden", !needsManualContent);
-  if (subject === "sports") {
-    els.customOtherLabel.textContent = "运动内容";
-    els.customOther.placeholder = "如：跳绳、篮球、跑步";
-  } else if (subject === "homework") {
+  if (subject === "homework") {
     els.customOtherLabel.textContent = "作业细项";
     els.customOther.placeholder = "如：语文默写、数学订正、英语听读";
   } else {
     els.customOtherLabel.textContent = "其他内容";
     els.customOther.placeholder = "如：订正数学单元练习";
+  }
+}
+
+function updateCourseFields() {
+  const kind = COURSE_KINDS[els.courseKind.value] || COURSE_KINDS.course;
+  const isSports = els.courseKind.value === "sports";
+  updateSportsContentOptions({ preferredValue: els.sportsContent.value });
+  const needsManualTitle = !isSports || els.sportsContent.value === "other";
+  els.sportsContentField.classList.toggle("is-hidden", !isSports);
+  els.courseTitleField.classList.toggle("is-hidden", !needsManualTitle);
+  els.courseTitleLabel.textContent = isSports ? "其他运动内容" : "课程内容";
+  els.courseTitle.placeholder = kind.placeholder;
+  const isDurationOnly = els.courseTimeMode.value === "duration";
+  els.courseTimeRange.classList.toggle("is-hidden", isDurationOnly);
+  if (isDurationOnly) {
+    els.courseStart.value = "";
+    els.courseEnd.value = "";
+  } else {
+    updateCourseMinutes();
   }
 }
 
@@ -398,14 +454,14 @@ function buildStudyTask() {
       return null;
     }
     task.customTitle = custom;
-    task.title = ["sports", "homework"].includes(subject) ? custom : `${subjectLabel}：${custom}`;
+    task.title = subject === "homework" ? custom : `${subjectLabel}：${custom}`;
   } else {
     const selectedContent = getContentOptions(subject).find((option) => option.id === contentType);
     if (!selectedContent) {
       return null;
     }
     task.customTitle = selectedContent.label;
-    task.title = ["sports", "homework"].includes(subject)
+    task.title = subject === "homework"
       ? selectedContent.label
       : `${subjectLabel}：${selectedContent.label}`;
   }
@@ -433,7 +489,11 @@ function addLibraryOptions() {
 
   els.libraryBatchInput.value = "";
   saveState();
-  refreshContentOptionsForSubject(subject);
+  if (subject === "sports") {
+    syncSportsContentSelection(added[0]?.id);
+  } else {
+    syncStudyContentSelection(subject, added[0]?.id);
+  }
   renderContentLibrary();
   setLibraryHint(added.length ? `已添加 ${added.length} 项` : "没有新增内容");
 }
@@ -532,7 +592,7 @@ function renderLibraryAllOptions() {
     return;
   }
 
-  SELECTABLE_SUBJECTS.forEach((subject) => {
+  LIBRARY_SUBJECTS.forEach((subject) => {
     const options = state.contentLibrary[subject] || [];
     const group = document.createElement("section");
     group.className = "library-subject-group";
@@ -571,13 +631,22 @@ function renderLibraryAllOptions() {
 }
 
 function countCustomContentOptions() {
-  return SELECTABLE_SUBJECTS.reduce(
+  return LIBRARY_SUBJECTS.reduce(
     (total, subject) => total + (state.contentLibrary[subject] || []).length,
     0,
   );
 }
 
 function refreshContentOptionsForSubject(subject, removedIds = []) {
+  if (subject === "sports") {
+    const previousValue = els.sportsContent.value;
+    updateSportsContentOptions();
+    if (previousValue && !removedIds.includes(previousValue)) {
+      els.sportsContent.value = previousValue;
+      updateCourseFields();
+    }
+    return;
+  }
   if (els.customSubject.value !== subject) {
     return;
   }
@@ -587,6 +656,24 @@ function refreshContentOptionsForSubject(subject, removedIds = []) {
     els.customContent.value = previousValue;
     updateDetailFields();
   }
+}
+
+function syncStudyContentSelection(subject, preferredContentId = "") {
+  els.customMode.value = "study";
+  els.customSubject.value = subject;
+  updateModeFields();
+  updateContentOptions({ preferredValue: preferredContentId || els.customContent.value });
+}
+
+function syncSportsContentSelection(preferredContentId = "") {
+  els.customMode.value = "course";
+  els.courseKind.value = "sports";
+  updateModeFields();
+  updateSportsContentOptions({ preferredValue: preferredContentId || els.sportsContent.value });
+  if (preferredContentId) {
+    els.sportsContent.value = preferredContentId;
+  }
+  updateCourseFields();
 }
 
 function parseBatchContent(value) {
@@ -614,27 +701,38 @@ function setLibraryHint(message) {
 }
 
 function buildCourseTask() {
-  const courseTitle = els.courseTitle.value.trim();
+  const courseKind = els.courseKind.value || "course";
+  const kindLabel = getCourseKindLabel({ courseKind });
+  const isSports = courseKind === "sports";
+  const selectedSportsContent = getContentOptions("sports").find((option) => option.id === els.sportsContent.value);
+  const courseTitle = isSports && selectedSportsContent?.id !== "other"
+    ? selectedSportsContent.label
+    : els.courseTitle.value.trim();
   if (!courseTitle) {
-    els.courseTitle.focus();
+    (isSports ? els.sportsContent : els.courseTitle).focus();
     return null;
   }
 
-  const calculatedMinutes = minutesFromTimeRange(els.courseStart.value, els.courseEnd.value);
+  const isDurationOnly = els.courseTimeMode.value === "duration";
+  const startTime = isDurationOnly ? "" : els.courseStart.value;
+  const endTime = isDurationOnly ? "" : els.courseEnd.value;
+  const calculatedMinutes = minutesFromTimeRange(startTime, endTime);
   const minutes = clamp(calculatedMinutes || Number(els.customMinutes.value) || 45, 5, 180);
   const schedule = getCourseSchedule({
-    startTime: els.courseStart.value,
-    endTime: els.courseEnd.value,
+    startTime,
+    endTime,
     minutes,
   });
 
   return {
     id: createId("course"),
-    subject: "course",
-    title: `课外课程：${courseTitle}`,
+    subject: isSports ? "sports" : "course",
+    title: `${kindLabel}：${courseTitle}`,
     minutes,
     source: "selected",
     contentType: "course",
+    courseKind,
+    sportsContentId: isSports ? els.sportsContent.value : "",
     status: "",
     statusTouched: false,
     courseTitle,
@@ -663,6 +761,9 @@ function clearTaskInputs() {
   els.courseTitle.value = "";
   els.courseStart.value = "";
   els.courseEnd.value = "";
+  els.courseTimeMode.value = "time";
+  els.sportsContent.value = "other";
+  updateCourseFields();
   resetDayChoices();
 }
 
@@ -734,13 +835,13 @@ function normalizeDayTasks(day, tasks, homeworkRemoved = false) {
     ...selectedTasks,
   ];
   return normalizedTasks.map((task) =>
-    normalizeCourseTask({
+    normalizeCourseTask(migrateLegacySportsTask({
       ...task,
       title: task.fixedType === "exercise" ? task.title || "" : task.title,
       minutes: normalizeTaskMinutes(task),
       status: task.statusTouched ? task.status || "" : "",
       statusTouched: Boolean(task.statusTouched && task.status),
-    }),
+    })),
   );
 }
 
@@ -802,9 +903,13 @@ function renderWeek() {
 
     const head = document.createElement("header");
     head.className = "day-head";
+    const totals = getDayTotals(day);
     head.innerHTML = `
       <h3><span>${day.label}</span><small>${getDayDateLabel(day.id)}</small></h3>
-      <span>${sumDay(day)} 分钟</span>
+      <div class="day-totals" aria-label="${day.label}时间汇总">
+        <span>学习 ${totals.study} 分钟</span>
+        <span>运动 ${totals.sports} 分钟</span>
+      </div>
     `;
     column.append(head);
 
@@ -853,12 +958,14 @@ function renderPrintWeekTable() {
   });
   DAYS.forEach((day) => {
     const colors = DAY_COLORS[day.id];
+    const planDay = state.plan.find((item) => item.id === day.id) || day;
+    const totals = getDayTotals(planDay);
     const th = document.createElement("th");
     th.className = `print-day-head print-day-${day.id}`;
     th.style.setProperty("--print-day-bg", colors.head);
     th.style.setProperty("--print-day-line", colors.line);
     th.style.setProperty("--print-day-ink", colors.text);
-    th.textContent = `${day.label}\n${getDayDateLabel(day.id)}`;
+    th.textContent = `${day.label}\n${getDayDateLabel(day.id)}\n学习${totals.study}分 运动${totals.sports}分`;
     headRow.append(th);
   });
   thead.append(headRow);
@@ -937,15 +1044,15 @@ function renderTask(dayId, task) {
   title.contentEditable = task.fixedType === "homework" ? "false" : "true";
   title.spellcheck = false;
   if (task.contentType === "course") {
-    title.append(createCourseTitlePrefix(), createCourseTitleName(task));
+    title.append(createCourseTitlePrefix(task), createCourseTitleName(task));
+  } else if (shouldUseSubjectTitle(task)) {
+    title.classList.add("study-title");
+    title.append(createStudyTitlePrefix(task), createStudyTitleName(task));
   } else {
     title.textContent = task.title;
   }
   if (task.fixedType === "homework") {
     title.title = "默认学校作业；如需细分，可删除后从左侧添加学校作业细项";
-  }
-  if (task.fixedType === "exercise") {
-    title.dataset.placeholder = "填写运动内容";
   }
   title.addEventListener("blur", () => {
     if (task.fixedType !== "homework") {
@@ -1019,10 +1126,10 @@ function renderTask(dayId, task) {
   return item;
 }
 
-function createCourseTitlePrefix() {
+function createCourseTitlePrefix(task) {
   const prefix = document.createElement("span");
   prefix.className = "course-title-prefix";
-  prefix.textContent = "课外课程";
+  prefix.textContent = getCourseKindLabel(task);
   return prefix;
 }
 
@@ -1030,6 +1137,24 @@ function createCourseTitleName(task) {
   const name = document.createElement("strong");
   name.className = "course-title-name";
   name.textContent = getCourseDisplayName(task);
+  return name;
+}
+
+function shouldUseSubjectTitle(task) {
+  return ["chinese", "math", "english"].includes(task.subject);
+}
+
+function createStudyTitlePrefix(task) {
+  const prefix = document.createElement("span");
+  prefix.className = "study-title-prefix";
+  prefix.textContent = `${SUBJECTS[task.subject]?.label || ""}：`;
+  return prefix;
+}
+
+function createStudyTitleName(task) {
+  const name = document.createElement("strong");
+  name.className = "study-title-name";
+  name.textContent = getStudyDisplayName(task);
   return name;
 }
 
@@ -1118,7 +1243,22 @@ function getTotalMinutes() {
 }
 
 function sumDay(day) {
-  return day.tasks.reduce((sum, task) => sum + Number(task.minutes || 0), 0);
+  return (day.tasks || []).reduce((sum, task) => sum + Number(task.minutes || 0), 0);
+}
+
+function getDayTotals(day) {
+  return (day.tasks || []).reduce(
+    (totals, task) => {
+      const minutes = Number(task.minutes || 0);
+      if (task.subject === "sports") {
+        totals.sports += minutes;
+      } else {
+        totals.study += minutes;
+      }
+      return totals;
+    },
+    { study: 0, sports: 0 },
+  );
 }
 
 function getSubjectTotals() {
@@ -1134,6 +1274,7 @@ function parentTips(form) {
   const tips = [
     "学校作业默认放入每天，假期可以一键清空，也可以按语文、数学、英语细分添加。",
     "添加内容时可以复选周一到周日，固定训练一次排进多个日期。",
+    "运动通过课外课程入口添加，但总时长会单独计入运动。",
     "打印后可以让孩子自己勾选完成项，周末一起看完成情况。",
     "导出 Excel 适合留档和复盘，导出 PDF 适合打印或发给家人查看。",
   ];
@@ -1166,15 +1307,17 @@ function exportExcelPlan() {
       .day-head { border-bottom: 1px solid #d9e2ef; padding: 8px; font-weight: 800; }
       .day-name { display: block; font-size: 15px; }
       .day-date { display: block; font-size: 11px; color: #667085; }
-      .day-total { display: block; margin-top: 3px; font-size: 11px; color: #667085; }
+      .day-total { display: block; margin-top: 2px; font-size: 10px; color: #667085; }
       .tasks { padding: 7px; }
       .task-card { margin-bottom: 7px; border: 1px solid #d9e2ef; border-left-width: 5px; border-radius: 7px; background: #ffffff; padding: 7px; font-size: 11px; line-height: 1.28; }
       .task-meta { margin-bottom: 4px; }
       .subject-chip { display: inline-block; border-radius: 999px; padding: 2px 7px; color: #ffffff; font-size: 10px; font-weight: 800; }
-      .task-minutes { float: right; color: #344054; font-size: 10px; font-weight: 800; }
       .task-title { clear: both; margin-top: 4px; color: #26384d; font-weight: 800; }
       .course-title-prefix { display: inline-block; margin-right: 4px; color: #64748b; font-size: 10px; font-weight: 800; }
       .course-title-name { display: inline-block; border-radius: 4px; background: #ede9fe; color: #5b21b6; padding: 2px 6px; font-size: 13px; font-weight: 900; }
+      .study-title-prefix { display: inline-block; margin-right: 4px; color: #64748b; font-size: 10px; font-weight: 800; }
+      .study-title-name { display: inline-block; border-radius: 4px; background: #eff6ff; color: #1d4ed8; padding: 2px 6px; font-size: 13px; font-weight: 900; }
+      .task-title-minutes { display: inline-block; margin-left: 4px; color: #64748b; font-size: 9px; font-weight: 800; }
       .task-note { margin-top: 4px; color: #475569; font-size: 10px; }
       .course-time { color: #5b21b6; font-size: 12px; font-weight: 900; }
       .task-status { margin-top: 4px; color: #344054; font-size: 10px; }
@@ -1229,6 +1372,7 @@ function exportPageStyleWeekHtml() {
 
 function exportPageStyleDayHtml(day) {
   const colors = DAY_COLORS[day.id];
+  const totals = getDayTotals(day);
   const sortedTasks = getSortedTasks(day.tasks);
   const taskHtml = sortedTasks.length
     ? sortedTasks.map((task) => exportPageStyleTaskHtml(task)).join("")
@@ -1245,7 +1389,8 @@ function exportPageStyleDayHtml(day) {
     ])}>
       <span class="day-name">${escapeHtml(day.label)}</span>
       <span class="day-date">${escapeHtml(getDayDateLabel(day.id))}</span>
-      <span class="day-total">${sumDay(day)} 分钟</span>
+      <span class="day-total">学习 ${totals.study} 分钟</span>
+      <span class="day-total">运动 ${totals.sports} 分钟</span>
     </div>
     <div class="tasks">${taskHtml}</div>
   </td>`;
@@ -1263,7 +1408,6 @@ function exportPageStyleTaskHtml(task) {
   ])}>
     <div class="task-meta">
       <span class="subject-chip"${excelStyle([`background: ${subject.color}`])}>${escapeHtml(subject.label)}</span>
-      <span class="task-minutes">${formatMinutes(task.minutes)}</span>
     </div>
     ${exportPageStyleTaskTitleHtml(task)}
     ${scheduleText ? `<div class="task-note ${task.contentType === "course" ? "course-time" : ""}">${escapeHtml(scheduleText)}</div>` : ""}
@@ -1273,9 +1417,12 @@ function exportPageStyleTaskHtml(task) {
 
 function exportPageStyleTaskTitleHtml(task) {
   if (task.contentType !== "course") {
-    return `<div class="task-title">${escapeHtml(task.title || contentLabel(task) || "未命名内容")}</div>`;
+    if (shouldUseSubjectTitle(task)) {
+      return `<div class="task-title study-title"><span class="study-title-prefix">${escapeHtml(SUBJECTS[task.subject]?.label || "")}：</span><strong class="study-title-name">${escapeHtml(getStudyDisplayName(task))}</strong><span class="task-title-minutes">${escapeHtml(formatMinutes(task.minutes))}</span></div>`;
+    }
+    return `<div class="task-title">${escapeHtml(task.title || contentLabel(task) || "未命名内容")}<span class="task-title-minutes">${escapeHtml(formatMinutes(task.minutes))}</span></div>`;
   }
-  return `<div class="task-title course-title"><span class="course-title-prefix">课外课程</span><strong class="course-title-name">${escapeHtml(getCourseDisplayName(task))}</strong></div>`;
+  return `<div class="task-title course-title"><span class="course-title-prefix">${escapeHtml(getCourseKindLabel(task))}</span><strong class="course-title-name">${escapeHtml(getCourseDisplayName(task))}</strong><span class="task-title-minutes">${escapeHtml(formatMinutes(task.minutes))}</span></div>`;
 }
 
 function createWeeklyMatrixRows() {
@@ -1338,9 +1485,9 @@ function getPrintDayCellText(tasks = []) {
   return sortedTasks
     .map((task) => {
       const status = "□未 □半 □完";
-      if (task.contentType === "course") {
-        const schedule = getCourseScheduleLabel(task);
-        return [schedule, `${task.minutes}分钟`, status].filter(Boolean).join("\n");
+  if (task.contentType === "course") {
+    const schedule = getCourseScheduleLabel(task);
+    return [schedule, `${task.minutes}分钟`, status].filter(Boolean).join("\n");
       }
       return [`${task.minutes}分钟`, status].join("\n");
     })
@@ -1354,12 +1501,27 @@ function getTaskExportTitle(task) {
   }
   const courseTitle = getCourseDisplayName(task);
   const schedule = getCourseScheduleLabel(task);
-  return schedule ? `课外课程：${courseTitle}（${schedule}）` : `课外课程：${courseTitle}`;
+  const label = getCourseKindLabel(task);
+  return schedule ? `${label}：${courseTitle}（${schedule}）` : `${label}：${courseTitle}`;
 }
 
 function getCourseDisplayName(task) {
   const title = task.title || "";
-  return task.courseTitle || title.replace(/^课外课程：/, "").trim() || "未填写课程";
+  return task.courseTitle || title.replace(/^(课外课程|运动)：/, "").trim() || "未填写内容";
+}
+
+function getCourseKindLabel(task) {
+  return COURSE_KINDS[task?.courseKind]?.label || COURSE_KINDS.course.label;
+}
+
+function getStudyDisplayName(task) {
+  const subjectLabel = SUBJECTS[task.subject]?.label || "";
+  const title = task.title || contentLabel(task) || "未命名内容";
+  return subjectLabel ? title.replace(new RegExp(`^${escapeRegExp(subjectLabel)}[：:]\\s*`), "").trim() || title : title;
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function getExportTimeLines(task) {
@@ -1378,7 +1540,7 @@ function getTaskScheduleText(task) {
 
 function getCourseScheduleText(task) {
   const label = getCourseScheduleLabel(task);
-  return label ? `课程时间：${label}` : "";
+  return label ? `${getCourseKindLabel(task)}时间：${label}` : "";
 }
 
 function getCourseScheduleLabel(task) {
@@ -1522,7 +1684,7 @@ function getContentOptions(subject) {
 }
 
 function createEmptyContentLibrary() {
-  return SELECTABLE_SUBJECTS.reduce((library, subject) => {
+  return LIBRARY_SUBJECTS.reduce((library, subject) => {
     library[subject] = [];
     return library;
   }, {});
@@ -1534,7 +1696,7 @@ function normalizeContentLibrary(contentLibrary) {
     return normalized;
   }
 
-  SELECTABLE_SUBJECTS.forEach((subject) => {
+  LIBRARY_SUBJECTS.forEach((subject) => {
     const savedOptions = Array.isArray(contentLibrary[subject]) ? contentLibrary[subject] : [];
     savedOptions.forEach((option) => {
       const label = String(typeof option === "string" ? option : option?.label || "").trim();
@@ -1551,7 +1713,7 @@ function normalizeContentLibrary(contentLibrary) {
 
 function removeLegacyDefaultContentOptions(contentLibrary) {
   const removedLabels = new Set(REMOVED_DEFAULT_CONTENT_LABELS.map(normalizeContentName));
-  SELECTABLE_SUBJECTS.forEach((subject) => {
+  LIBRARY_SUBJECTS.forEach((subject) => {
     contentLibrary[subject] = (contentLibrary[subject] || []).filter(
       (option) => !removedLabels.has(normalizeContentName(option.label)),
     );
@@ -1590,16 +1752,40 @@ function migrateFixedExerciseTask(task) {
   if (!task || (!task.title && (task.minutes === "" || task.minutes == null))) {
     return null;
   }
+  const courseTitle = getLegacySportsCourseTitle(task);
   return {
     ...task,
     id: createId("exercise"),
     source: "selected",
     fixedType: undefined,
     subject: "sports",
-    contentType: "exercise",
-    title: task.title || "运动",
+    contentType: "course",
+    courseKind: "sports",
+    courseTitle,
+    title: `运动：${courseTitle}`,
     minutes: clamp(Number(task.minutes) || 20, 5, 180),
   };
+}
+
+function migrateLegacySportsTask(task) {
+  if (!task || (task.subject !== "sports" && task.contentType !== "exercise")) {
+    return task;
+  }
+  const courseTitle = getLegacySportsCourseTitle(task);
+  return {
+    ...task,
+    subject: "sports",
+    contentType: "course",
+    courseKind: "sports",
+    courseTitle,
+    title: `运动：${courseTitle}`,
+    fixedType: undefined,
+  };
+}
+
+function getLegacySportsCourseTitle(task) {
+  const title = String(task.courseTitle || task.customTitle || task.title || "").replace(/^运动：/, "").trim();
+  return title || "运动";
 }
 
 function downloadBlob(blob, fileName) {

@@ -665,6 +665,19 @@ textarea {
   font-weight: 800;
 }
 
+.day-totals {
+  display: grid;
+  gap: 2px;
+  justify-items: end;
+}
+
+.day-totals span {
+  color: var(--day-ink, var(--muted));
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
 .task-list {
   display: grid;
   align-content: start;
@@ -732,7 +745,16 @@ textarea {
   gap: 6px;
 }
 
-.course-title-prefix {
+.study-title {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.course-title-prefix,
+.study-title-prefix {
   color: #64748b;
   font-size: 12px;
   font-weight: 900;
@@ -743,6 +765,17 @@ textarea {
   border-radius: 6px;
   background: #ede9fe;
   color: #5b21b6;
+  padding: 3px 7px;
+  font-size: 15px;
+  font-weight: 950;
+  line-height: 1.2;
+}
+
+.study-title-name {
+  border: 1px solid color-mix(in srgb, var(--subject-color, var(--blue)) 35%, white);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--subject-color, var(--blue)) 14%, white);
+  color: color-mix(in srgb, var(--subject-color, var(--blue)) 75%, #172033);
   padding: 3px 7px;
   font-size: 15px;
   font-weight: 950;
@@ -1142,6 +1175,15 @@ textarea {
     font-size: 9px;
   }
 
+  .day-totals {
+    gap: 0;
+  }
+
+  .day-totals span {
+    font-size: 8px;
+    line-height: 1.1;
+  }
+
   .task-list {
     gap: 4px;
     padding: 5px;
@@ -1186,6 +1228,24 @@ textarea {
     padding: 0;
     font-size: 10px;
     line-height: 1.2;
+  }
+
+  .course-title,
+  .study-title {
+    min-height: 0;
+    gap: 2px;
+  }
+
+  .course-title-prefix,
+  .study-title-prefix {
+    font-size: 8px;
+  }
+
+  .course-title-name,
+  .study-title-name {
+    border-radius: 3px;
+    padding: 1px 3px;
+    font-size: 10px;
   }
 
   .task-note {
